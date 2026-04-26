@@ -1,11 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace BlackjackGame
 {
     public enum Suit { Hearts, Diamonds, Clubs, Spades }
     public enum Rank { Two = 2, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace }
+
+    public class UserSave
+    {
+        public int Id { get; set; }
+        public int Balance { get; set; }
+        public DateTime LastPlayed { get; set; }
+    }
+
+    public class BlackjackContext : DbContext
+    {
+        public DbSet<UserSave> Saves { get; set; }
+        protected override void OnConfiguring(DbContextOptionsBuilder options)
+            => options.UseSqlite("Data Source=blackjack.db");
+    }
 
     public class Card
     {
@@ -31,8 +46,14 @@ namespace BlackjackGame
 
     public class Hand
     {
+        public event Action? OnBust; 
+
         public List<Card> Cards { get; } = new();
-        public void Add(Card c) => Cards.Add(c);
+        public void Add(Card c) 
+        { 
+            Cards.Add(c);
+            if (Score() > 21) OnBust?.Invoke(); 
+        }
 
         public int Score()
         {

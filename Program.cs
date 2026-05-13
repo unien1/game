@@ -33,7 +33,7 @@ using (var db = new BlackjackContext())
     db.SaveChanges();
   } else {
     balance = save.Balance;
-    if (balance < bet) canPlay = false;
+    if (balance < 10) canPlay = false;
   }
 }
 
@@ -77,18 +77,18 @@ Deck deck = new();
 Hand player = new();
 Hand dealer = new();
 string statusMessage = "";
-bool gameOver = false;
+bool gameOver = true;
 
 void StartGame()
 {
-  if (balance < bet) { canPlay = false; statusMessage = "OUT OF MONEY!"; return; }
+  if (balance < bet) { statusMessage = "NOT ENOUGH MONEY!"; return; }
   canPlay = true;
   deck = new(); player = new(); dealer = new();
   player.OnBust += () => { statusMessage = "YOU BUSTED!"; };
   player.Add(deck.Draw()); player.Add(deck.Draw());
   dealer.Add(deck.Draw()); dealer.Add(deck.Draw());
   gameOver = false;
-  statusMessage = "BET: $" + bet;
+  statusMessage = "";
 }
 
 void ProcessResults() 
@@ -99,22 +99,24 @@ void ProcessResults()
   else if (d > 21 || p > d) { balance += bet; statusMessage = "YOU WIN! +$" + bet; }
   else if (p < d) { balance -= bet; statusMessage = "DEALER WINS! -$" + bet; }
   else statusMessage = "PUSH (DRAW)";
-  if (balance < bet) canPlay = false;
+  
+  if (balance < 10) canPlay = false;
+  if (bet > balance) bet = balance;
+  if (bet < 10 && balance >= 10) bet = 10;
+
   _ = SaveBalanceAsync();
 }
-
-StartGame();
 
 void DrawTextF(string text, int x, int y, int size, Color color) => 
   Raylib.DrawTextEx(verdanaFont, text, new Vector2(x, y), (float)size, 1, color);
 
-bool GuiButton(Rectangle rect, string text, Color baseColor)
+bool GuiButton(Rectangle rect, string text, Color baseColor, int fontSize = 24)
 {
   Vector2 mouse = Raylib.GetMousePosition();
   bool isHover = Raylib.CheckCollisionPointRec(mouse, rect);
   Raylib.DrawRectangleRounded(rect, 0.15f, 8, isHover ? hoverBlue : baseColor);
-  Vector2 textSize = Raylib.MeasureTextEx(verdanaFont, text, 24, 1);
-  DrawTextF(text, (int)(rect.x + rect.width/2 - textSize.X/2), (int)(rect.y + rect.height/2 - textSize.Y/2), 24, Color.WHITE);
+  Vector2 textSize = Raylib.MeasureTextEx(verdanaFont, text, fontSize, 1);
+  DrawTextF(text, (int)(rect.x + rect.width/2 - textSize.X/2), (int)(rect.y + rect.height/2 - textSize.Y/2), fontSize, Color.WHITE);
   return isHover && Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT);
 }
 
@@ -126,7 +128,6 @@ while (!Raylib.WindowShouldClose())
   Rectangle balPanel = new Rectangle(845, 30, 125, 60); 
   Raylib.DrawRectangleRounded(balPanel, 0.2f, 10, uiPanelColor);
   Raylib.DrawRectangleRoundedLines(balPanel, 0.2f, 10, 2, new Color(45, 50, 60, 255));
-
   DrawTextF("BALANCE", (int)balPanel.x + 15, (int)balPanel.y + 10, 14, Color.GRAY);
   DrawTextF($"$ {balance}", (int)balPanel.x + 15, (int)balPanel.y + 25, 26, Color.WHITE);
 
@@ -153,12 +154,32 @@ while (!Raylib.WindowShouldClose())
     }
   } else {
     if (canPlay) {
-      if (GuiButton(new Rectangle(350, 590, 300, 60), "NEW DEAL", accentBlue)) StartGame();
+      if (GuiButton(new Rectangle(50, 590, 80, 60), "-100", accentBlue, 18)) {
+        bet = Math.Max(10, bet - 100);
+      }
+      if (GuiButton(new Rectangle(140, 590, 80, 60), "-10", accentBlue, 18)) {
+        bet = Math.Max(10, bet - 10);
+      }
+      
+      Rectangle betDisplay = new Rectangle(230, 590, 140, 60);
+      Raylib.DrawRectangleRounded(betDisplay, 0.15f, 8, new Color(30, 30, 35, 255));
+      DrawTextF("CURRENT BET", (int)betDisplay.x + 25, (int)betDisplay.y + 10, 12, Color.GRAY);
+      DrawTextF($"${bet}", (int)betDisplay.x + 40, (int)betDisplay.y + 25, 26, Color.WHITE);
+
+      if (GuiButton(new Rectangle(380, 590, 80, 60), "+10", accentBlue, 18)) {
+        if (bet + 10 <= balance) bet += 10;
+      }
+      if (GuiButton(new Rectangle(470, 590, 80, 60), "+100", accentBlue, 18)) {
+        if (bet + 100 <= balance) bet += 100;
+        else bet = balance;
+      }
+
+      if (GuiButton(new Rectangle(570, 590, 380, 60), "DEAL", new Color(0, 180, 100, 255))) StartGame();
     } else {
       if (GuiButton(new Rectangle(350, 590, 300, 60), "RELOAD ($1000)", Color.ORANGE)) {
-        balance = 1000;
+        balance = 1000; bet = 100;
         _ = SaveBalanceAsync();
-        StartGame();
+        canPlay = true;
       }
     }
     Vector2 msgSize = Raylib.MeasureTextEx(verdanaFont, statusMessage, 26, 1);
